@@ -1,46 +1,34 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'mcr.microsoft.com/azure-cli'  // Azure CLI pre-installed
+            args '-v /var/run/docker.sock:/var/run/docker.sock'  // access host Docker
+        }
+    }
 
     environment {
-        // Define Docker image name
-        IMAGE_NAME = "arun/flask-devops:latest"
+        // Use the Azure Service Principal credentials saved in Jenkins
+        AZURE_CREDENTIALS = credentials('AZURE_CREDENTIALS')
     }
 
     stages {
 
-        stage('Checkout') {
-           steps {
-               checkout([$class: 'GitSCM',
-                   branches: [[name: '*/main']],   // explicitly use main
-                   userRemoteConfigs: [[
-                        url: 'https://github.com/democloudarun/devops-azure-project.git',
-                        credentialsId: 'GITHUB_CREDENTIALS'  // must match Jenkins credentials ID
-                     ]]
-                ])
-           }
-        }  
-
         stage('Terraform Apply') {
             steps {
-                withCredentials([azureServicePrincipal(credentialsId: 'AZURE_CREDENTIALS')]) {
+                withCredentials([
+                    azureServicePrincipal(
+                        credentialsId: 'AZURE_CREDENTIALS'
+                    )
+                ]) {
                     sh '''
-                    # Login to Azure using Service Principal
+                    echo "Logging into Azure with Service Principal..."
                     az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID
 
-                    # Go to terraform folder
+                    echo "Applying Terraform..."
                     cd terraform
-
-                    # Initialize Terraform
                     terraform init
-
-                    # Create a plan
                     terraform plan -out=tfplan
-
-                    # Apply the plan automatically
                     terraform apply -auto-approve tfplan
-
-                    # Return to project root
-                    cd ..
                     '''
                 }
             }
@@ -48,30 +36,29 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t $IMAGE_NAME -f docker/Dockerfile ."
+                sh '''
+                echo "Building Docker image for the website..."
+                docker build -t arunwebsite:latest ./docker
+                '''
             }
         }
 
         stage('Test Application') {
             steps {
                 sh '''
-                    # Install Python test dependencies
-                    pip install flask pytest
-
-                    # Run automated tests
-                    pytest app/test_app.py
+                echo "Running Python unit tests..."
+                python3 -m unittest app/test_app.py
                 '''
             }
         }
 
         stage('Deploy Application') {
-            when {
-                expression { currentBuild.currentResult == 'SUCCESS' }
-            }
             steps {
                 sh '''
-                    # Run Ansible playbook to deploy Docker container on Azure VM
-                    ansible-playbook -i ansible/inventory ansible/playbook.yml
+                echo "Deploying website container..."
+                docker stop arunwebsite || true
+                docker rm arunwebsite || true
+                docker run -d --name arunwebsite -p 80:5000 arunwebsite:latest
                 '''
             }
         }
@@ -79,12 +66,10 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline completed successfully! Website deployed."
+            echo "Pipeline completed successfully! Visit http://<YOUR_WSL_IP>:80 to see the website."
         }
         failure {
-            echo "Pipeline failed. Check logs to debug."
+            echo "Pipeline failed. Check the logs above for errors."
         }
     }
 }
-
-
