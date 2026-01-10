@@ -9,10 +9,16 @@ pipeline {
     stages {
 
         stage('Checkout') {
-            steps {
-                git url: 'https://github.com/democloudarun/devops-azure-project.git', credentialsId: 'GITHUB_CREDENTIALS'
-            }
-        }
+           steps {
+               checkout([$class: 'GitSCM',
+                   branches: [[name: '*/main']],   // explicitly use main
+                   userRemoteConfigs: [[
+                        url: 'https://github.com/democloudarun/devops-azure-project.git',
+                        credentialsId: 'GITHUB_CREDENTIALS'  // must match Jenkins credentials ID
+                     ]]
+                ])
+           }
+        }  
 
         stage('Terraform Apply') {
             steps {
@@ -80,4 +86,5 @@ pipeline {
         }
     }
 }
+
 
