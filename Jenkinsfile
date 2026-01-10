@@ -10,7 +10,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git 'https://github.com/arun/devops-azure-project.git'
+                git url: 'https://github.com/democloudarun/devops-azure-project.git', credentialsId: 'GITHUB_CREDENTIALS'
             }
         }
 
@@ -80,3 +80,4 @@ pipeline {
         }
     }
 }
+
