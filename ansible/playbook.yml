@@ -1,0 +1,25 @@
+- hosts: web
+  become: true
+  tasks:
+    - name: Install Docker
+      apt:
+        name: docker.io
+        update_cache: yes
+
+    - name: Start Docker
+      service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Remove old container
+      docker_container:
+        name: flask-app
+        state: absent
+
+    - name: Run Flask container
+      docker_container:
+        name: flask-app
+        image: arun/flask-devops:latest
+        ports:
+          - "80:5000"
