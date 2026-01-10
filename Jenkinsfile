@@ -1,14 +1,19 @@
 pipeline {
     agent {
         docker {
-            image 'mcr.microsoft.com/azure-cli'  // Azure CLI pre-installed
-            args '-v /var/run/docker.sock:/var/run/docker.sock'  // access host Docker
+            image 'mcr.microsoft.com/azure-cli:latest'  // Azure CLI pre-installed
+            args '''
+                -v /var/run/docker.sock:/var/run/docker.sock  // access host Docker
+                -v $HOME/.azure:/root/.azure                  // writable Azure config directory
+                -u root                                       // run as root inside container
+            '''
         }
     }
 
     environment {
         // Use the Azure Service Principal credentials saved in Jenkins
         AZURE_CREDENTIALS = credentials('AZURE_CREDENTIALS')
+        AZURE_CONFIG_DIR = '/root/.azure' // fixes PermissionError
     }
 
     stages {
@@ -65,11 +70,4 @@ pipeline {
     }
 
     post {
-        success {
-            echo "Pipeline completed successfully! Visit http://<YOUR_WSL_IP>:80 to see the website."
-        }
-        failure {
-            echo "Pipeline failed. Check the logs above for errors."
-        }
-    }
-}
+        success
