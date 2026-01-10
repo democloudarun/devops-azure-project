@@ -1,19 +1,18 @@
 pipeline {
     agent {
         docker {
-            image 'mcr.microsoft.com/azure-cli:latest'  // Azure CLI pre-installed
+            image 'mcr.microsoft.com/azure-cli:latest'
             args '''
-                -v /var/run/docker.sock:/var/run/docker.sock  // access host Docker
-                -v $HOME/.azure:/root/.azure                  // writable Azure config directory
-                -u root                                       // run as root inside container
+                -v /var/run/docker.sock:/var/run/docker.sock
+                -v $HOME/.azure:/root/.azure
+                -u root
             '''
         }
     }
 
     environment {
-        // Use the Azure Service Principal credentials saved in Jenkins
         AZURE_CREDENTIALS = credentials('AZURE_CREDENTIALS')
-        AZURE_CONFIG_DIR = '/root/.azure' // fixes PermissionError
+        AZURE_CONFIG_DIR = '/root/.azure'
     }
 
     stages {
@@ -21,9 +20,7 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 withCredentials([
-                    azureServicePrincipal(
-                        credentialsId: 'AZURE_CREDENTIALS'
-                    )
+                    azureServicePrincipal(credentialsId: 'AZURE_CREDENTIALS')
                 ]) {
                     sh '''
                     echo "Logging into Azure with Service Principal..."
@@ -70,4 +67,11 @@ pipeline {
     }
 
     post {
-        success
+        success {
+            echo "Pipeline completed successfully! Visit http://<YOUR_WSL_IP>:80 to see the website."
+        }
+        failure {
+            echo "Pipeline failed. Check the logs above for errors."
+        }
+    }
+}
