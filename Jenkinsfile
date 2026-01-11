@@ -2,13 +2,6 @@ pipeline {
     agent any
 
     stages {
-        stage('Declarative: Checkout SCM') {
-            steps {
-                echo 'Checking out code from SCM...'
-                checkout scm
-            }
-        }
-
         stage('Checkout') {
             steps {
                 echo 'Checking out Git repository...'
@@ -57,3 +50,4 @@ pipeline {
         }
     }
 }
+
