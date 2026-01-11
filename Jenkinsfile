@@ -1,49 +1,77 @@
-FROM jenkins/jenkins:lts-jdk17
+pipeline {
+    agent {
+        docker {
+            image 'mcr.microsoft.com/azure-cli:latest'
+            args '''
+                -v /var/run/docker.sock:/var/run/docker.sock
+                -v $HOME/.azure:/root/.azure
+                -u root
+            '''
+        }
+    }
 
-USER root
+    environment {
+        AZURE_CREDENTIALS = credentials('AZURE_CREDENTIALS')
+        AZURE_CONFIG_DIR = '/root/.azure'
+    }
 
-# -----------------------------
-# Install OS dependencies
-# -----------------------------
-RUN apt-get update && apt-get install -y \
-    curl \
-    gnupg \
-    lsb-release \
-    unzip \
-    git \
-    python3 \
-    python3-pip \
-    sudo \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    stages {
 
-# -----------------------------
-# Install Docker CLI
-# -----------------------------
-RUN curl -fsSL https://get.docker.com | sh
+        stage('Terraform Apply') {
+            steps {
+                withCredentials([
+                    azureServicePrincipal(credentialsId: 'AZURE_CREDENTIALS')
+                ]) {
+                    sh '''
+                    echo "Logging into Azure with Service Principal..."
+                    az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID
 
-# Allow Jenkins user to run Docker
-RUN usermod -aG docker jenkins
+                    echo "Applying Terraform..."
+                    cd terraform
+                    terraform init
+                    terraform plan -out=tfplan
+                    terraform apply -auto-approve tfplan
+                    '''
+                }
+            }
+        }
 
-# -----------------------------
-# Install Terraform (stable version)
-# -----------------------------
-ENV TERRAFORM_VERSION=1.6.6
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                echo "Building Docker image for the website..."
+                docker build -t arunwebsite:latest ./docker
+                '''
+            }
+        }
 
-RUN curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
-    -o terraform.zip && \
-    unzip terraform.zip && \
-    mv terraform /usr/local/bin/ && \
-    rm terraform.zip
+        stage('Test Application') {
+            steps {
+                sh '''
+                echo "Running Python unit tests..."
+                python3 -m unittest app/test_app.py
+                '''
+            }
+        }
 
-# -----------------------------
-# Install Azure CLI
-# -----------------------------
-RUN curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+        stage('Deploy Application') {
+            steps {
+                sh '''
+                echo "Deploying website container..."
+                docker stop arunwebsite || true
+                docker rm arunwebsite || true
+                docker run -d --name arunwebsite -p 80:5000 arunwebsite:latest
+                '''
+            }
+        }
+    }
 
-# -----------------------------
-# Install Ansible (via apt, not pip)
-# -----------------------------
-RUN apt-get update && apt-get install -y ansible && rm -rf /var/lib/apt/lists/*
-
-USER jenkins
+    post {
+        success {
+            echo "Pipeline completed successfully! Visit http://<YOUR_WSL_IP>:80 to see the website."
+        }
+        failure {
+            echo "Pipeline failed. Check the logs above for errors."
+        }
+    }
+}
