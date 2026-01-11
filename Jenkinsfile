@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        // Set environment variables if needed
-    }
-
     stages {
         stage('Declarative: Checkout SCM') {
             steps {
@@ -28,7 +24,6 @@ pipeline {
 
         stage('Terraform Apply') {
             steps {
-                // Inject Azure SP and SSH key credentials
                 withCredentials([
                     string(credentialsId: 'AZURE_CLIENT_ID', variable: 'AZURE_CLIENT_ID'),
                     string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'AZURE_CLIENT_SECRET'),
@@ -48,5 +43,27 @@ pipeline {
                         echo "Running Terraform..."
                         cd terraform
                         terraform init
-                        terraform apply -auto-approve \
-                          -var="azure_subscription_id=${AZURE_SUBSCRIPTION_I
+                        terraform apply -auto-approve \\
+                          -var="azure_subscription_id=${AZURE_SUBSCRIPTION_ID}" \\
+                          -var="azure_client_id=${AZURE_CLIENT_ID}" \\
+                          -var="azure_client_secret=${AZURE_CLIENT_SECRET}" \\
+                          -var="azure_tenant_id=${AZURE_TENANT_ID}" \\
+                          -var="ssh_public_key=${SSH_PUBLIC_KEY}"
+                    '''
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                    echo "Building Docker image..."
+                    docker build -t myapp:latest .
+                '''
+            }
+        }
+
+        stage('Test Application') {
+            steps {
+                sh '''
+                    echo "Running applic
