@@ -4,12 +4,14 @@ pipeline {
     stages {
         stage('Declarative: Checkout SCM') {
             steps {
+                echo 'Checking out code from SCM...'
                 checkout scm
             }
         }
 
         stage('Checkout') {
             steps {
+                echo 'Checking out Git repository...'
                 checkout([$class: 'GitSCM',
                     branches: [[name: '*/main']],
                     doGenerateSubmoduleConfigurations: false,
@@ -31,7 +33,6 @@ pipeline {
                     string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'AZURE_SUBSCRIPTION_ID'),
                     string(credentialsId: 'SSH_PUBLIC_KEY', variable: 'SSH_PUBLIC_KEY')
                 ]) {
-                    // <-- Make sure this sh block opens and closes with ''' correctly
                     sh '''
                         echo "Logging into Azure with Service Principal..."
                         az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID
@@ -44,6 +45,15 @@ pipeline {
                         echo "Running Terraform..."
                         cd terraform
                         terraform init
-                        terraform apply -auto-approve -var="azure_subscription_id=${AZURE_SUBSCRIPTION_ID}" -var="azure_client_id=${AZURE_CLIENT_ID}" -var="azure_client_secret=${AZURE_CLIENT_SECRET}" -var="azure_tenant_id=${AZURE_TENANT_ID}" -var="ssh_public_key=${SSH_PUBLIC_KEY}"
+                        terraform apply -auto-approve \
+                            -var="azure_subscription_id=${AZURE_SUBSCRIPTION_ID}" \
+                            -var="azure_client_id=${AZURE_CLIENT_ID}" \
+                            -var="azure_client_secret=${AZURE_CLIENT_SECRET}" \
+                            -var="azure_tenant_id=${AZURE_TENANT_ID}" \
+                            -var="ssh_public_key=${SSH_PUBLIC_KEY}"
                     '''
                 }
+            }
+        }
+    }
+}
