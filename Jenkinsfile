@@ -33,7 +33,8 @@ pipeline {
                         echo "Running Terraform..."
                         cd terraform
                         terraform init
-                        terraform apply -auto-approve
+                        terraform apply -auto-approve \
+                            -var="ssh_public_key=${SSH_PUBLIC_KEY}"
                     '''
                 }
             }
@@ -81,3 +82,4 @@ pipeline {
         }
     }
 }
+
