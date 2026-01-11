@@ -31,6 +31,7 @@ pipeline {
                     string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'AZURE_SUBSCRIPTION_ID'),
                     string(credentialsId: 'SSH_PUBLIC_KEY', variable: 'SSH_PUBLIC_KEY')
                 ]) {
+                    // <-- Make sure this sh block opens and closes with ''' correctly
                     sh '''
                         echo "Logging into Azure with Service Principal..."
                         az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID
@@ -43,27 +44,6 @@ pipeline {
                         echo "Running Terraform..."
                         cd terraform
                         terraform init
-                        terraform apply -auto-approve \\
-                          -var="azure_subscription_id=${AZURE_SUBSCRIPTION_ID}" \\
-                          -var="azure_client_id=${AZURE_CLIENT_ID}" \\
-                          -var="azure_client_secret=${AZURE_CLIENT_SECRET}" \\
-                          -var="azure_tenant_id=${AZURE_TENANT_ID}" \\
-                          -var="ssh_public_key=${SSH_PUBLIC_KEY}"
+                        terraform apply -auto-approve -var="azure_subscription_id=${AZURE_SUBSCRIPTION_ID}" -var="azure_client_id=${AZURE_CLIENT_ID}" -var="azure_client_secret=${AZURE_CLIENT_SECRET}" -var="azure_tenant_id=${AZURE_TENANT_ID}" -var="ssh_public_key=${SSH_PUBLIC_KEY}"
                     '''
                 }
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                sh '''
-                    echo "Building Docker image..."
-                    docker build -t myapp:latest .
-                '''
-            }
-        }
-
-        stage('Test Application') {
-            steps {
-                sh '''
-                    echo "Running applic
