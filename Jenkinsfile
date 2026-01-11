@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     environment {
-        // Optional but recommended
         TF_IN_AUTOMATION = "true"
     }
 
@@ -75,7 +74,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Pipeline completed successfully!"
-            echo "🌐 Visit: http://<WSL-IP>:80"
+            echo "Pipeline completed successfully"
         }
         failure {
+            echo "Pipeline failed. Check logs above."
+        }
+    }
+}
