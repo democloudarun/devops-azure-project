@@ -2,28 +2,43 @@ pipeline {
     agent any
 
     environment {
-        TF_IN_AUTOMATION = "true"
+        // Set environment variables if needed
     }
 
     stages {
-
-        stage('Checkout') {
+        stage('Declarative: Checkout SCM') {
             steps {
                 checkout scm
             }
         }
 
+        stage('Checkout') {
+            steps {
+                checkout([$class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/democloudarun/devops-azure-project.git',
+                        credentialsId: '5bf7bda2-4d08-4a39-bf8d-fca9b54b5b66'
+                    ]]
+                ])
+            }
+        }
+
         stage('Terraform Apply') {
             steps {
+                // Inject Azure SP and SSH key credentials
                 withCredentials([
-                    azureServicePrincipal(credentialsId: 'AZURE_CREDENTIALS')
+                    string(credentialsId: 'AZURE_CLIENT_ID', variable: 'AZURE_CLIENT_ID'),
+                    string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'AZURE_CLIENT_SECRET'),
+                    string(credentialsId: 'AZURE_TENANT_ID', variable: 'AZURE_TENANT_ID'),
+                    string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'AZURE_SUBSCRIPTION_ID'),
+                    string(credentialsId: 'SSH_PUBLIC_KEY', variable: 'SSH_PUBLIC_KEY')
                 ]) {
                     sh '''
                         echo "Logging into Azure with Service Principal..."
-                        az login --service-principal \
-                          -u "$AZURE_CLIENT_ID" \
-                          -p "$AZURE_CLIENT_SECRET" \
-                          --tenant "$AZURE_TENANT_ID"
+                        az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID
 
                         echo "Verifying tools..."
                         az version
@@ -34,52 +49,4 @@ pipeline {
                         cd terraform
                         terraform init
                         terraform apply -auto-approve \
-                            -var="ssh_public_key=${SSH_PUBLIC_KEY}"
-                    '''
-                }
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                sh '''
-                    echo "Building Docker image..."
-                    docker build -t arunwebsite:latest ./docker
-                '''
-            }
-        }
-
-        stage('Test Application') {
-            steps {
-                sh '''
-                    echo "Running unit tests..."
-                    python3 -m unittest app/test_app.py
-                '''
-            }
-        }
-
-        stage('Deploy Application') {
-            steps {
-                sh '''
-                    echo "Deploying application..."
-                    docker stop arunwebsite || true
-                    docker rm arunwebsite || true
-                    docker run -d \
-                      --name arunwebsite \
-                      -p 80:5000 \
-                      arunwebsite:latest
-                '''
-            }
-        }
-    }
-
-    post {
-        success {
-            echo "Pipeline completed successfully"
-        }
-        failure {
-            echo "Pipeline failed. Check logs above."
-        }
-    }
-}
-
+                          -var="azure_subscription_id=${AZURE_SUBSCRIPTION_I
