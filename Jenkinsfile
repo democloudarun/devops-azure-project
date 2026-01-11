@@ -1,21 +1,18 @@
 pipeline {
-    agent {
-        docker {
-            image 'mcr.microsoft.com/azure-cli:latest'
-            args '''
-                -v /var/run/docker.sock:/var/run/docker.sock
-                -v $HOME/.azure:/root/.azure
-                -u root
-            '''
-        }
-    }
+    agent any
 
     environment {
-        AZURE_CREDENTIALS = credentials('AZURE_CREDENTIALS')
-        AZURE_CONFIG_DIR = '/root/.azure'
+        // Optional but recommended
+        TF_IN_AUTOMATION = "true"
     }
 
     stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
 
         stage('Terraform Apply') {
             steps {
@@ -23,14 +20,21 @@ pipeline {
                     azureServicePrincipal(credentialsId: 'AZURE_CREDENTIALS')
                 ]) {
                     sh '''
-                    echo "Logging into Azure with Service Principal..."
-                    az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID
+                        echo "Logging into Azure with Service Principal..."
+                        az login --service-principal \
+                          -u "$AZURE_CLIENT_ID" \
+                          -p "$AZURE_CLIENT_SECRET" \
+                          --tenant "$AZURE_TENANT_ID"
 
-                    echo "Applying Terraform..."
-                    cd terraform
-                    terraform init
-                    terraform plan -out=tfplan
-                    terraform apply -auto-approve tfplan
+                        echo "Verifying tools..."
+                        az version
+                        terraform version
+                        docker version
+
+                        echo "Running Terraform..."
+                        cd terraform
+                        terraform init
+                        terraform apply -auto-approve
                     '''
                 }
             }
@@ -39,8 +43,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                echo "Building Docker image for the website..."
-                docker build -t arunwebsite:latest ./docker
+                    echo "Building Docker image..."
+                    docker build -t arunwebsite:latest ./docker
                 '''
             }
         }
@@ -48,8 +52,8 @@ pipeline {
         stage('Test Application') {
             steps {
                 sh '''
-                echo "Running Python unit tests..."
-                python3 -m unittest app/test_app.py
+                    echo "Running unit tests..."
+                    python3 -m unittest app/test_app.py
                 '''
             }
         }
@@ -57,10 +61,13 @@ pipeline {
         stage('Deploy Application') {
             steps {
                 sh '''
-                echo "Deploying website container..."
-                docker stop arunwebsite || true
-                docker rm arunwebsite || true
-                docker run -d --name arunwebsite -p 80:5000 arunwebsite:latest
+                    echo "Deploying application..."
+                    docker stop arunwebsite || true
+                    docker rm arunwebsite || true
+                    docker run -d \
+                      --name arunwebsite \
+                      -p 80:5000 \
+                      arunwebsite:latest
                 '''
             }
         }
@@ -68,10 +75,7 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline completed successfully! Visit http://<YOUR_WSL_IP>:80 to see the website."
+            echo "✅ Pipeline completed successfully!"
+            echo "🌐 Visit: http://<WSL-IP>:80"
         }
         failure {
-            echo "Pipeline failed. Check the logs above for errors."
-        }
-    }
-}
