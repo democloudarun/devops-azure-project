@@ -48,6 +48,29 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy App') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'SSH_PUBLIC_KEY', variable: 'SSH_PUBLIC_KEY')
+                ]) {
+                    sh '''
+                        # 1. Get the VM IP from Terraform output
+                        VM_IP=$(cd terraform && terraform output -raw vm_public_ip)
+                        
+                        # 2. Build and Run the Docker container on the VM
+                        # Note: We map HOST 8080 to CONTAINER 5000
+                        ssh -o StrictHostKeyChecking=no azureuser@${VM_IP} << EOF
+                            # Stop any existing containers to avoid port conflicts
+                            sudo docker stop my-website || true
+                            sudo docker rm my-website || true
+                            
+                            # Pull and Run your image (replace with your image)
+                            sudo docker run -d --name my-website -p 8080:5000 <your-dockerhub-username>/<image-name>:latest
+                        EOF
+                    '''
+                }
+            }
+        }
     }
 }
-
